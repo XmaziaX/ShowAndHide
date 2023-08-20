@@ -4,14 +4,19 @@
 <context>
     <name>ShowAndHideVisibleLayerByType</name>
     <message>
-        <location filename="../show_and_hide.py" line="112"/>
+        <location filename="../show_and_hide.py" line="113"/>
         <source>Hide / Show visible vector layers</source>
         <translation>Zgaś / Wyświetl widoczne warstwy wektorowe</translation>
     </message>
     <message>
-        <location filename="../show_and_hide.py" line="116"/>
+        <location filename="../show_and_hide.py" line="117"/>
         <source>Hide / Show visible raster layers</source>
         <translation>Zgaś / Wyświetl widoczne warstwy rastrowe</translation>
+    </message>
+    <message>
+        <location filename="../show_and_hide.py" line="121"/>
+        <source>Hide / Show visible point cloud layers</source>
+        <translation>Zgaś / Wyświetl widoczne chmury punktów</translation>
     </message>
 </context>
 </TS>
