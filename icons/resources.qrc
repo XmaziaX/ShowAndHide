@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/plugins/show_and_hide/icons" >
+        <file>icon.png</file>
+        <file>vector.png</file>
+        <file>raster.png</file>
+    </qresource>
+</RCC>
