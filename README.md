@@ -15,3 +15,5 @@ A simple QGIS plugin that allows you to turn visible vector and raster layers on
 * Hide / Show visible raster layers    <img src="./icons/raster.png" width="50" style="background:25px white">
     <p> Default shortcut Alt + 2
 You can change shortcuts in Settings > Keyboard Shortcuts menu.
+
+ <img src="video.gif">
