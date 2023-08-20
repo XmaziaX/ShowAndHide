@@ -3,5 +3,6 @@
         <file>icon.png</file>
         <file>vector.png</file>
         <file>raster.png</file>
+        <file>point_cloud.png</file>
     </qresource>
 </RCC>

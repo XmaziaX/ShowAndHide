@@ -68,6 +68,7 @@ class ShowAndHideVisibleLayerByType:
 
         self.V_LAYER_CHECK = []
         self.R_LAYER_CHECK = []
+        self.P_LAYER_CHECK = []
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -117,6 +118,10 @@ class ShowAndHideVisibleLayerByType:
                                                     self.tr('Hide / Show visible raster layers'),
                                                     'Alt+2', self.show_hide_r)
 
+        self.add_buttons_action(":/plugins/show_and_hide/icons/point_cloud.png",
+                                                    self.tr('Hide / Show visible point cloud layers'),
+                                                    'Alt+3', self.show_hide_p)
+
 
 
     def unload(self):
@@ -155,3 +160,7 @@ class ShowAndHideVisibleLayerByType:
     def show_hide_r(self):
         """Toolbar function show/hide raster layer"""
         return self.show_hide(self.R_LAYER_CHECK, QgsMapLayer.RasterLayer)
+
+    def show_hide_p(self):
+        """Toolbar function show/hide point cloud layer"""
+        return self.show_hide(self.P_LAYER_CHECK, QgsMapLayer.PointCloudLayer)

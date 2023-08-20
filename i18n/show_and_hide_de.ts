@@ -4,14 +4,19 @@
 <context>
     <name>ShowAndHideVisibleLayerByType</name>
     <message>
-        <location filename="../show_and_hide.py" line="112"/>
+        <location filename="../show_and_hide.py" line="113"/>
         <source>Hide / Show visible vector layers</source>
-        <translation>Sichtbare Vektorebenen ausblenden / anzeigen</translation>
+        <translation>Sichtbare Vektorebenen Anzeigen /Ausblenden</translation>
     </message>
     <message>
-        <location filename="../show_and_hide.py" line="116"/>
+        <location filename="../show_and_hide.py" line="117"/>
         <source>Hide / Show visible raster layers</source>
-        <translation>Sichtbare Rasterebenen einblenden / einblenden</translation>
+        <translation>Sichtbare Rasterebenen Anzeigen /Ausblenden</translation>
+    </message>
+    <message>
+        <location filename="../show_and_hide.py" line="121"/>
+        <source>Hide / Show visible point cloud layers</source>
+        <translation>&apos;Sichtbare Punktwolkenebenen Anzeigen /Ausblenden</translation>
     </message>
 </context>
 </TS>
