@@ -14,7 +14,6 @@ A simple QGIS plugin that allows you to turn visible vector, raster and point cl
 
 * Hide / Show visible raster layers    <img src="./icons/raster.png" width="50" style="background:25px white">
     <p> Default shortcut Alt + 2
-You can change shortcuts in Settings > Keyboard Shortcuts menu.
 
 * Hide / Show visible point cloud layers    <img src="./icons/point_cloud.png" width="50" style="background:25px white">
     <p> Default shortcut Alt + 3
