@@ -1,6 +1,6 @@
 # Show And Hide Layers    
 
-<img src="./icons/icon.png" width="50" >
+<img src="./icons/icon.svg" width="50" >
 
 A simple QGIS plugin that allows you to turn visible vector, raster and point cloud layers on and off
 <br>This is a useful option when vectorizing based on orthophotos, etc.
@@ -9,14 +9,23 @@ A simple QGIS plugin that allows you to turn visible vector, raster and point cl
 
 
 ## **Tool buttons:**
-* Hide / Show visible vector layers         <img src="./icons/vector.png" width="50"  style="background:25px white">
-    <p> Default shortcut Alt + 1
+* Hide / Show visible vector layers         <img src="./icons/vector.svg" width="50"  style="background:25px white">
+    <p> Default shortcut Ctrl + Shift + 1
 
-* Hide / Show visible raster layers    <img src="./icons/raster.png" width="50" style="background:25px white">
-    <p> Default shortcut Alt + 2
+* Hide / Show visible raster layers    <img src="./icons/raster.svg" width="50" style="background:25px white">
+    <p> Default shortcut Ctrl + Shift + 2
 
-* Hide / Show visible point cloud layers    <img src="./icons/point_cloud.png" width="50" style="background:25px white">
-    <p> Default shortcut Alt + 3
-You can change shortcuts in Settings > Keyboard Shortcuts menu.
+* Hide / Show visible point cloud layers    <img src="./icons/point_cloud.svg" width="50" style="background:25px white">
+    <p> Default shortcut Ctrl + Shift + 3
+
+## **Toolbar and shortcuts**
+* Plugin actions are added to a dedicated **Show And Hide** toolbar.
+* The toolbar includes vector, raster and point cloud toggle buttons, plus a separator and **Shortcut settings** (gear icon).
+* Shortcuts can be changed in plugin settings (**Show And Hide > Shortcut settings**) and are saved per user.
+
+## **Build / release note**
+* Compile translations before packaging the plugin:
+  * `compile_translations.bat`
+* This generates `.qm` files from `i18n/*.ts`, required for runtime translations in QGIS.
 
  <img src="video.gif">

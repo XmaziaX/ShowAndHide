@@ -23,17 +23,34 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon, QKeySequence
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import (
+    QAction,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QKeySequenceEdit,
+    QMessageBox,
+    QToolBar,
+)
 
-from qgis.core import QgsMapLayerType, QgsProject, QgsMapLayer
-# Initialize Qt resources from file resources.py
-from .icons.resources import *
-# Import the code for the dialog
+from qgis.core import Qgis, QgsMapLayerType, QgsProject, QgsMapLayer, QgsMessageLog
 import os.path
 
 
 class ShowAndHideVisibleLayerByType:
     """QGIS Plugin Implementation."""
+
+    LEGACY_SHORTCUTS = {
+        "vector": "Alt+1",
+        "raster": "Alt+2",
+        "point_cloud": "Alt+3",
+    }
+
+    DEFAULT_SHORTCUTS = {
+        "vector": "Ctrl+Shift+1",
+        "raster": "Ctrl+Shift+2",
+        "point_cloud": "Ctrl+Shift+3",
+    }
 
     def __init__(self, iface):
         """Constructor.
@@ -61,6 +78,12 @@ class ShowAndHideVisibleLayerByType:
 
         # Declare instance attributes
         self.actions = []
+        self.menu_actions = []
+        self.plugin_menu = self.tr("&Show And Hide")
+        self.toolbar = None
+        self.action_vector = None
+        self.action_raster = None
+        self.action_point_cloud = None
 
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
@@ -85,17 +108,107 @@ class ShowAndHideVisibleLayerByType:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('ShowAndHideVisibleLayerByType', message)
 
-    def add_buttons_action(self, image: str, button_name: str, key_seq: str, func_name) -> QAction:
+    def _settings_key(self, shortcut_name: str) -> str:
+        return "show_and_hide/shortcut_{}".format(shortcut_name)
+
+    def _read_shortcut(self, shortcut_name: str) -> str:
+        return QSettings().value(
+            self._settings_key(shortcut_name), self.DEFAULT_SHORTCUTS[shortcut_name]
+        )
+
+    def _write_shortcut(self, shortcut_name: str, shortcut_value: str) -> None:
+        QSettings().setValue(self._settings_key(shortcut_name), shortcut_value)
+
+    def _migrate_legacy_shortcuts(self) -> None:
+        """Migrate legacy Alt-based defaults to safer defaults once."""
+        settings = QSettings()
+        migrated_key = "show_and_hide/shortcuts_migrated_v2"
+        if settings.value(migrated_key, False, type=bool):
+            return
+
+        for shortcut_name in self.DEFAULT_SHORTCUTS.keys():
+            current_value = settings.value(self._settings_key(shortcut_name), "")
+            if not current_value or current_value == self.LEGACY_SHORTCUTS[shortcut_name]:
+                settings.setValue(
+                    self._settings_key(shortcut_name),
+                    self.DEFAULT_SHORTCUTS[shortcut_name],
+                )
+        settings.setValue(migrated_key, True)
+
+    def add_buttons_action(
+        self, image: str, button_name: str, shortcut_name: str, func_name
+    ) -> QAction:
         """Function to add button actions to toolbar"""
         action_button = QAction(QIcon(image),
                                 button_name,
                                 self.iface.mainWindow())
-        shortcut = QKeySequence(self.tr(key_seq))
-        action_button.setShortcuts(shortcut)
+        shortcut = QKeySequence(self._read_shortcut(shortcut_name))
+        # Keep compatibility with Qt5/Qt6 QAction APIs.
+        action_button.setShortcut(shortcut)
         action_button.triggered.connect(func_name)
-        self.iface.addToolBarIcon(action_button)
+        self.toolbar.addAction(action_button)
         self.actions.append(action_button)
         return action_button
+
+    def _validate_shortcuts(self, shortcuts: dict) -> bool:
+        normalized = [value.strip() for value in shortcuts.values() if value.strip()]
+        return len(normalized) == len(set(normalized))
+
+    def _apply_shortcuts(self, shortcuts: dict) -> None:
+        self.action_vector.setShortcut(QKeySequence(shortcuts["vector"]))
+        self.action_raster.setShortcut(QKeySequence(shortcuts["raster"]))
+        self.action_point_cloud.setShortcut(QKeySequence(shortcuts["point_cloud"]))
+
+    def _open_shortcut_settings(self) -> None:
+        dialog = QDialog(self.iface.mainWindow())
+        dialog.setWindowTitle(self.tr("Shortcut settings"))
+        layout = QFormLayout(dialog)
+
+        vector_edit = QKeySequenceEdit(QKeySequence(self._read_shortcut("vector")), dialog)
+        raster_edit = QKeySequenceEdit(QKeySequence(self._read_shortcut("raster")), dialog)
+        point_cloud_edit = QKeySequenceEdit(
+            QKeySequence(self._read_shortcut("point_cloud")), dialog
+        )
+
+        layout.addRow(self.tr("Vector layers"), vector_edit)
+        layout.addRow(self.tr("Raster layers"), raster_edit)
+        layout.addRow(self.tr("Point cloud layers"), point_cloud_edit)
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.RestoreDefaults,
+            parent=dialog,
+        )
+        layout.addRow(button_box)
+
+        def restore_defaults() -> None:
+            vector_edit.setKeySequence(QKeySequence(self.DEFAULT_SHORTCUTS["vector"]))
+            raster_edit.setKeySequence(QKeySequence(self.DEFAULT_SHORTCUTS["raster"]))
+            point_cloud_edit.setKeySequence(QKeySequence(self.DEFAULT_SHORTCUTS["point_cloud"]))
+
+        restore_button = button_box.button(QDialogButtonBox.RestoreDefaults)
+        restore_button.clicked.connect(restore_defaults)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        while dialog.exec() == QDialog.Accepted:
+            selected = {
+                "vector": vector_edit.keySequence().toString(),
+                "raster": raster_edit.keySequence().toString(),
+                "point_cloud": point_cloud_edit.keySequence().toString(),
+            }
+
+            if not self._validate_shortcuts(selected):
+                QMessageBox.warning(
+                    self.iface.mainWindow(),
+                    self.tr("Invalid shortcuts"),
+                    self.tr("Each action must use a unique shortcut."),
+                )
+                continue
+
+            for key, value in selected.items():
+                self._write_shortcut(key, value)
+            self._apply_shortcuts(selected)
+            break
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
@@ -108,50 +221,94 @@ class ShowAndHideVisibleLayerByType:
 
         # will be set False in run()
         self.first_start = True
+        self._migrate_legacy_shortcuts()
+        self.toolbar = self.iface.addToolBar(self.tr("Show And Hide"))
+        self.toolbar.setObjectName("ShowAndHideToolbar")
+        self.toolbar.setToolTip(self.tr("Show And Hide"))
+        self.toolbar.setWindowIcon(QIcon(os.path.join(self.plugin_dir, "icons", "icon.svg")))
 
         # create buttons actions
-        self.add_buttons_action(":/plugins/show_and_hide/icons/vector.png",
+        self.action_vector = self.add_buttons_action(os.path.join(self.plugin_dir, "icons", "vector.svg"),
                                                     self.tr('Hide / Show visible vector layers'),
-                                                    'Alt+1', self.show_hide_v)
+                                                    "vector", self.show_hide_v)
 
-        self.add_buttons_action(":/plugins/show_and_hide/icons/raster.png",
+        self.action_raster = self.add_buttons_action(os.path.join(self.plugin_dir, "icons", "raster.svg"),
                                                     self.tr('Hide / Show visible raster layers'),
-                                                    'Alt+2', self.show_hide_r)
+                                                    "raster", self.show_hide_r)
 
-        self.add_buttons_action(":/plugins/show_and_hide/icons/point_cloud.png",
+        self.action_point_cloud = self.add_buttons_action(os.path.join(self.plugin_dir, "icons", "point_cloud.svg"),
                                                     self.tr('Hide / Show visible point cloud layers'),
-                                                    'Alt+3', self.show_hide_p)
+                                                    "point_cloud", self.show_hide_p)
 
+        settings_action = QAction(
+            QIcon(os.path.join(self.plugin_dir, "icons", "settings.svg")),
+            self.tr("Shortcut settings"),
+            self.iface.mainWindow(),
+        )
+        settings_action.triggered.connect(self._open_shortcut_settings)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(settings_action)
+        self.iface.addPluginToMenu(self.plugin_menu, settings_action)
+        self.menu_actions.append(settings_action)
 
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
-            self.iface.removeToolBarIcon(action)
+            if self.toolbar is not None:
+                self.toolbar.removeAction(action)
+        for action in self.menu_actions:
+            if self.toolbar is not None:
+                self.toolbar.removeAction(action)
+            self.iface.removePluginMenu(self.plugin_menu, action)
+        if self.toolbar is not None:
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            self.toolbar = None
+
+    def log_info(self, message: str) -> None:
+        """Write plugin info message to QGIS message log."""
+        QgsMessageLog.logMessage(message, "ShowAndHide", level=Qgis.Info)
+
+    def _set_visibility_by_id(self, layer_ref, is_visible: bool) -> bool:
+        """Set visibility for a layer by id, returns True on success."""
+        if isinstance(layer_ref, dict):
+            layer_id = layer_ref.get("id", "")
+            layer_name = layer_ref.get("name", "")
+        else:
+            layer_id = str(layer_ref)
+            layer_name = ""
+
+        node = QgsProject.instance().layerTreeRoot().findLayer(layer_id)
+        if node is None:
+            readable_name = layer_name if layer_name else layer_id
+            self.log_info(
+                "Layer '{}' is no longer available in the layer tree.".format(readable_name)
+            )
+            return False
+
+        node.setItemVisibilityChecked(is_visible)
+        return True
 
     def show_hide(self, list_name: list, layer_type: QgsMapLayerType) -> None:
-        """Template for toolbar functions show/hide  layers"""
+        """Toggle visibility for currently visible layers of selected type."""
         if list_name:
-            for layer in list_name:
-                try:
-                    QgsProject.instance().layerTreeRoot().findLayer(layer.layerId()).setItemVisibilityChecked(True)
-                except RuntimeError:
-                    pass
+            for layer_id in list_name:
+                self._set_visibility_by_id(layer_id, True)
             list_name.clear()
-        else:
-            root = QgsProject.instance().layerTreeRoot()
-            layer_list = root.findLayers()
-            for list_object in layer_list:
-                if list_object.isVisible() and list_object.layer().type() == layer_type:
-                    list_name.append(list_object)
-                else:
-                    pass
-                for layer in list_name:
-                    try:
-                        QgsProject.instance().layerTreeRoot().findLayer(layer.layerId()).setItemVisibilityChecked(
-                            False)
-                    except RuntimeError:
-                        pass
+            return
+
+        root = QgsProject.instance().layerTreeRoot()
+        layer_nodes = root.findLayers()
+
+        for layer_node in layer_nodes:
+            layer = layer_node.layer()
+            if layer is None:
+                continue
+            if layer_node.isVisible() and layer.type() == layer_type:
+                list_name.append({"id": layer.id(), "name": layer.name()})
+
+        for layer_id in list_name:
+            self._set_visibility_by_id(layer_id, False)
 
     def show_hide_v(self):
         """Toolbar function show/hide vector layer"""
@@ -163,4 +320,8 @@ class ShowAndHideVisibleLayerByType:
 
     def show_hide_p(self):
         """Toolbar function show/hide point cloud layer"""
-        return self.show_hide(self.P_LAYER_CHECK, QgsMapLayer.PointCloudLayer)
+        point_cloud_type = getattr(QgsMapLayer, "PointCloudLayer", None)
+        if point_cloud_type is None:
+            self.log_info("Point cloud layer type is not available in this QGIS version.")
+            return None
+        return self.show_hide(self.P_LAYER_CHECK, point_cloud_type)
