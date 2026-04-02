@@ -5,8 +5,9 @@
 [general]
 name=Show And Hide
 qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
 description=A simple plugin that allows you to turn visible vector, raster and point cloud layers on and off.
-version=1.2.1
+version=1.2.2
 author=Tomasz Mazuga
 email=tmazuga@gmail.com
 date=2026-04-02
@@ -22,8 +23,10 @@ repository=https://github.com/XmaziaX/ShowAndHide
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=
-    Version 1.2.0
-     * Fix README
+    Version 1.2.2
+    *  Add support for QGIS4 (in metadata file)
+    Version 1.2.1
+    * Fix README
     Version 1.2.0
     * Add dedicated plugin toolbar with settings action and refreshed SVG icons
     * Add per-user shortcut settings dialog with validation and persisted values
