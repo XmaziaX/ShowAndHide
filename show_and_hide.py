@@ -24,17 +24,53 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon, QKeySequence
 from qgis.PyQt.QtWidgets import (
-    QAction,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QKeySequenceEdit,
     QMessageBox,
-    QToolBar,
 )
 
-from qgis.core import Qgis, QgsMapLayerType, QgsProject, QgsMapLayer, QgsMessageLog
+try:
+    # Qt6 / QGIS 4
+    from qgis.PyQt.QtGui import QAction
+except ImportError:
+    from qgis.PyQt.QtWidgets import QAction
+
+from qgis.core import Qgis, QgsMapLayerType, QgsProject, QgsMessageLog
 import os.path
+
+
+def _qt_enum(owner, *candidates):
+    """Resolve a Qt/QGIS enum across Qt5 (flat) and Qt6 (scoped) names."""
+    for candidate in candidates:
+        current = owner
+        found = True
+        for part in candidate.split("."):
+            current = getattr(current, part, None)
+            if current is None:
+                found = False
+                break
+        if found:
+            return current
+    raise AttributeError(
+        "None of {} found on {}".format(candidates, getattr(owner, "__name__", owner))
+    )
+
+
+def _set_action_shortcut(action: QAction, shortcut_value: str) -> None:
+    """Set one shortcut without the Qt6 QKeyCombination TypeError.
+
+    In Qt6, QKeySequence is a sequence of QKeyCombination. Passing that object
+    to setShortcuts() iterates it and raises:
+    TypeError: index 0 has type 'QKeyCombination' but 'QKeySequence' is expected
+    A one-element list of QKeySequence is valid on both Qt5 and Qt6.
+    """
+    sequence = QKeySequence(shortcut_value)
+    try:
+        action.setShortcuts([sequence])
+    except TypeError:
+        action.setShortcut(sequence)
 
 
 class ShowAndHideVisibleLayerByType:
@@ -142,9 +178,7 @@ class ShowAndHideVisibleLayerByType:
         action_button = QAction(QIcon(image),
                                 button_name,
                                 self.iface.mainWindow())
-        shortcut = QKeySequence(self._read_shortcut(shortcut_name))
-        # Keep compatibility with Qt5/Qt6 QAction APIs.
-        action_button.setShortcut(shortcut)
+        _set_action_shortcut(action_button, self._read_shortcut(shortcut_name))
         action_button.triggered.connect(func_name)
         self.toolbar.addAction(action_button)
         self.actions.append(action_button)
@@ -155,9 +189,9 @@ class ShowAndHideVisibleLayerByType:
         return len(normalized) == len(set(normalized))
 
     def _apply_shortcuts(self, shortcuts: dict) -> None:
-        self.action_vector.setShortcut(QKeySequence(shortcuts["vector"]))
-        self.action_raster.setShortcut(QKeySequence(shortcuts["raster"]))
-        self.action_point_cloud.setShortcut(QKeySequence(shortcuts["point_cloud"]))
+        _set_action_shortcut(self.action_vector, shortcuts["vector"])
+        _set_action_shortcut(self.action_raster, shortcuts["raster"])
+        _set_action_shortcut(self.action_point_cloud, shortcuts["point_cloud"])
 
     def _open_shortcut_settings(self) -> None:
         dialog = QDialog(self.iface.mainWindow())
@@ -174,8 +208,13 @@ class ShowAndHideVisibleLayerByType:
         layout.addRow(self.tr("Raster layers"), raster_edit)
         layout.addRow(self.tr("Point cloud layers"), point_cloud_edit)
 
+        ok_button = _qt_enum(QDialogButtonBox, "StandardButton.Ok", "Ok")
+        cancel_button = _qt_enum(QDialogButtonBox, "StandardButton.Cancel", "Cancel")
+        restore_defaults_button = _qt_enum(
+            QDialogButtonBox, "StandardButton.RestoreDefaults", "RestoreDefaults"
+        )
         button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.RestoreDefaults,
+            ok_button | cancel_button | restore_defaults_button,
             parent=dialog,
         )
         layout.addRow(button_box)
@@ -185,12 +224,13 @@ class ShowAndHideVisibleLayerByType:
             raster_edit.setKeySequence(QKeySequence(self.DEFAULT_SHORTCUTS["raster"]))
             point_cloud_edit.setKeySequence(QKeySequence(self.DEFAULT_SHORTCUTS["point_cloud"]))
 
-        restore_button = button_box.button(QDialogButtonBox.RestoreDefaults)
+        restore_button = button_box.button(restore_defaults_button)
         restore_button.clicked.connect(restore_defaults)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
 
-        while dialog.exec() == QDialog.Accepted:
+        accepted = _qt_enum(QDialog, "DialogCode.Accepted", "Accepted")
+        while dialog.exec() == accepted:
             selected = {
                 "vector": vector_edit.keySequence().toString(),
                 "raster": raster_edit.keySequence().toString(),
@@ -267,7 +307,9 @@ class ShowAndHideVisibleLayerByType:
 
     def log_info(self, message: str) -> None:
         """Write plugin info message to QGIS message log."""
-        QgsMessageLog.logMessage(message, "ShowAndHide", level=Qgis.Info)
+        QgsMessageLog.logMessage(
+            message, "ShowAndHide", level=_qt_enum(Qgis, "MessageLevel.Info", "Info")
+        )
 
     def _set_visibility_by_id(self, layer_ref, is_visible: bool) -> bool:
         """Set visibility for a layer by id, returns True on success."""
@@ -312,15 +354,15 @@ class ShowAndHideVisibleLayerByType:
 
     def show_hide_v(self):
         """Toolbar function show/hide vector layer"""
-        return self.show_hide(self.V_LAYER_CHECK, QgsMapLayer.VectorLayer)
+        return self.show_hide(self.V_LAYER_CHECK, QgsMapLayerType.VectorLayer)
 
     def show_hide_r(self):
         """Toolbar function show/hide raster layer"""
-        return self.show_hide(self.R_LAYER_CHECK, QgsMapLayer.RasterLayer)
+        return self.show_hide(self.R_LAYER_CHECK, QgsMapLayerType.RasterLayer)
 
     def show_hide_p(self):
         """Toolbar function show/hide point cloud layer"""
-        point_cloud_type = getattr(QgsMapLayer, "PointCloudLayer", None)
+        point_cloud_type = getattr(QgsMapLayerType, "PointCloudLayer", None)
         if point_cloud_type is None:
             self.log_info("Point cloud layer type is not available in this QGIS version.")
             return None
